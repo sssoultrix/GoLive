@@ -1,3 +1,4 @@
 .env
 auth/configs/.env
-
+.idea/
+*.iml
