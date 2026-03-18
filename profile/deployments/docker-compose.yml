@@ -1,0 +1,61 @@
+name: golive-profile
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-profile}
+      POSTGRES_USER: ${POSTGRES_USER:-profile}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-profile}
+    ports:
+      - "5433:5432"
+    volumes:
+      - profile_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../migrations:/migrations:ro
+    entrypoint:
+      - /migrate
+      - -path
+      - /migrations
+      - -database
+      - postgres://${POSTGRES_USER:-profile}:${POSTGRES_PASSWORD:-profile}@postgres:5432/${POSTGRES_DB:-profile}?sslmode=${POSTGRES_SSLMODE:-disable}
+    command: ["up"]
+    restart: "no"
+
+  profile-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      PROFILE_HTTP_ADDR: 0.0.0.0:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8082:8081"
+
+  adminer:
+    image: adminer:4
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8080"
+
+volumes:
+  profile_postgres_data:
+
